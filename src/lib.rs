@@ -45,11 +45,11 @@ pub use platform::chrome_devtools::ChromeDevToolsExtractor;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ExtractionMethod {
-    /// auto decision（recomment）
+    /// Auto decision (PowerShell優先 - 推奨)
     Auto,
-    /// Chrome DevTools Protocol（high speed but debug mode is needed）
+    /// Chrome DevTools Protocol (詳細情報取得 - デバッグモード必要)
     DevTools,
-    /// PowerShell（depends on environment）
+    /// PowerShell (高速・互換性重視)
     PowerShell,
 }
 
@@ -172,34 +172,44 @@ pub fn is_browser_active() -> bool {
     }
 }
 
-/// 非同期版：自動判定でブラウザ情報を取得
-#[cfg(feature = "devtools")]
-pub async fn get_active_browser_info_async() -> Result<BrowserInfo, BrowserInfoError> {
-    // Chrome DevToolsを試行
-    if ChromeDevToolsExtractor::is_available().await {
-        println!("🚀 Using Chrome DevTools Protocol");
-        return ChromeDevToolsExtractor::extract_browser_info().await;
-    }
-    
-    println!("⚠️ Chrome DevTools not available, falling back to sync method");
-    // フォールバックとして既存の同期版を使用
+/// 高速・互換性重視（PowerShell方式）
+pub fn get_browser_info_safe() -> Result<BrowserInfo, BrowserInfoError> {
     get_active_browser_info()
 }
 
+/// 詳細情報重視（Chrome DevTools - デバッグモード必要）
 #[cfg(feature = "devtools")]
-pub async fn get_browser_info_fast() -> Result<BrowserInfo, BrowserInfoError> {
+pub async fn get_browser_info_detailed() -> Result<BrowserInfo, BrowserInfoError> {
     ChromeDevToolsExtractor::extract_browser_info().await
 }
 
-/// 互換性・安全性重視（通常ブラウザで動作）
-pub fn get_browser_info_safe() -> Result<BrowserInfo, BrowserInfoError> {
-    // PowerShell方式（同期）
-    get_active_browser_info()
+/// 後方互換性のためのエイリアス
+#[cfg(feature = "devtools")]
+pub async fn get_browser_info_fast() -> Result<BrowserInfo, BrowserInfoError> {
+    get_browser_info_detailed().await
 }
 
-/// デフォルト（自動判定・推奨）
+/// デフォルト（自動判定・推奨）- PowerShell優先
 pub async fn get_browser_info() -> Result<BrowserInfo, BrowserInfoError> {
-    get_active_browser_info_async().await
+    // 1. PowerShell方式を最優先（高速・確実）
+    match get_browser_info_safe() {
+        Ok(info) => {
+            println!("✅ Using PowerShell method (fastest)");
+            return Ok(info);
+        }
+        Err(e) => {
+            println!("⚠️ PowerShell failed: {}, trying DevTools...", e);
+        }
+    }
+    
+    // 2. PowerShell失敗時のみDevTools
+    #[cfg(feature = "devtools")]
+    if ChromeDevToolsExtractor::is_available().await {
+        println!("🔄 Fallback to Chrome DevTools Protocol");
+        return ChromeDevToolsExtractor::extract_browser_info().await;
+    }
+    
+    Err(BrowserInfoError::Other("All extraction methods failed".to_string()))
 }
 
 /// 明示的な方法指定
@@ -207,23 +217,11 @@ pub async fn get_browser_info_with_method(method: ExtractionMethod) -> Result<Br
     match method {
         ExtractionMethod::Auto => get_browser_info().await,
         #[cfg(feature = "devtools")]
-        ExtractionMethod::DevTools => get_browser_info_fast().await,
+        ExtractionMethod::DevTools => get_browser_info_detailed().await,
         #[cfg(not(feature = "devtools"))]
         ExtractionMethod::DevTools => {
             Err(BrowserInfoError::Other("DevTools feature not enabled".to_string()))
         }
         ExtractionMethod::PowerShell => get_browser_info_safe(),
-    }
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
     }
 }

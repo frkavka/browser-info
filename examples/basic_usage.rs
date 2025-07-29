@@ -9,7 +9,7 @@ use browser_info::get_browser_info_fast;
 use std::thread;
 use std::time::Duration;
 
-#[tokio::main] // 非同期main関数に変更
+#[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🌐 Browser Info Library - Basic Usage Demo");
     println!("==========================================");

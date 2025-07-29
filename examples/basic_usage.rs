@@ -3,7 +3,7 @@ use browser_info::{
 };
 use browser_info::{get_active_browser_info, get_active_browser_url, is_browser_active};
 
-#[cfg(feature = "devtools")]
+#[cfg(all(feature = "devtools", target_os = "windows"))]
 use browser_info::get_browser_info_fast;
 
 use std::thread;
@@ -116,18 +116,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => println!("   ❌ Auto failed: {}", e),
     }
 
-    // 2. 高速モード
-    #[cfg(feature = "devtools")]
+    // 2. 高速モード (Windows only)
+    #[cfg(all(feature = "devtools", target_os = "windows"))]
     {
-        println!("\n2️⃣ Fast method (DevTools):");
+        println!("\n2️⃣ Fast method (DevTools - Windows only):");
         match get_browser_info_fast().await {
             Ok(info) => println!("   ✅ Fast: {} - {}", info.browser_name, info.title),
             Err(e) => println!("   ❌ Fast failed: {}", e),
         }
     }
 
-    // 3. 安全モード
-    println!("\n3️⃣ Safe method (PowerShell):");
+    #[cfg(not(all(feature = "devtools", target_os = "windows")))]
+    {
+        println!("\n2️⃣ Fast method: Not available on this platform (Windows only)");
+    }
+
+    // 3. 安全モード (Cross-platform)
+    println!("\n3️⃣ Safe method (Cross-platform):");
     match get_browser_info_safe() {
         Ok(info) => println!("   ✅ Safe: {} - {}", info.browser_name, info.title),
         Err(e) => println!("   ❌ Safe failed: {}", e),
@@ -147,9 +152,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("\n🎯 Test completed!");
-    println!(
-        "💡 Note: DevTools methods require Chrome to be running with --remote-debugging-port=9222"
-    );
+    println!("💡 Notes:");
+    println!("   • DevTools methods require Chrome with --remote-debugging-port=9222");
+    println!("   • DevTools and some methods are Windows-only");
+    println!("   • macOS uses AppleScript, Linux support is planned");
 
     Ok(())
 }

@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // カウントダウン
     for i in (1..=5).rev() {
-        println!("   {} seconds...", i);
+        println!("   {i} seconds...");
         thread::sleep(Duration::from_secs(1));
     }
 
@@ -68,10 +68,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n🔗 Testing URL extraction...");
     match get_active_browser_url() {
         Ok(url) => {
-            println!("✅ URL extracted: {}", url);
+            println!("✅ URL extracted: {url}");
         }
         Err(e) => {
-            println!("⚠️  URL extraction failed: {}", e);
+            println!("⚠️  URL extraction failed: {e}");
             println!("   (This is expected with current dummy implementation)");
         }
     }
@@ -81,13 +81,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match get_active_browser_info() {
         Ok(info) => {
             println!("✅ Full information extracted:");
-            println!("   🔗 URL: {}", info.url);
-            println!("   📝 Title: {}", info.title);
+            println!("   🔗 URL: {url}", url = info.url);
+            println!("   📝 Title: {title}", title = info.title);
             println!(
                 "   🌐 Browser: {} ({:?})",
                 info.browser_name, info.browser_type
             );
-            println!("   🆔 Process ID: {}", info.process_id);
+            println!(
+                "   🆔 Process ID: {process_id}",
+                process_id = info.process_id
+            );
             println!(
                 "   📐 Position: ({:.0}, {:.0})",
                 info.window_position.x, info.window_position.y
@@ -102,7 +105,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Err(e) => {
-            println!("❌ Full info extraction failed: {}", e);
+            println!("❌ Full info extraction failed: {e}");
         }
     }
 
@@ -112,8 +115,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 1. 自動選択
     println!("\n1️⃣ Auto method:");
     match get_browser_info().await {
-        Ok(info) => println!("   ✅ Auto: {} - {}", info.browser_name, info.title),
-        Err(e) => println!("   ❌ Auto failed: {}", e),
+        Ok(info) => println!(
+            "   ✅ Auto: {browser_name} - {title}",
+            browser_name = info.browser_name,
+            title = info.title
+        ),
+        Err(e) => println!("   ❌ Auto failed: {e}"),
     }
 
     // 2. 高速モード (Windows only)
@@ -121,8 +128,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         println!("\n2️⃣ Fast method (DevTools - Windows only):");
         match get_browser_info_fast().await {
-            Ok(info) => println!("   ✅ Fast: {} - {}", info.browser_name, info.title),
-            Err(e) => println!("   ❌ Fast failed: {}", e),
+            Ok(info) => println!(
+                "   ✅ Fast: {browser_name} - {title}",
+                browser_name = info.browser_name,
+                title = info.title
+            ),
+            Err(e) => println!("   ❌ Fast failed: {e}"),
         }
     }
 
@@ -134,8 +145,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 3. 安全モード (Cross-platform)
     println!("\n3️⃣ Safe method (Cross-platform):");
     match get_browser_info_safe() {
-        Ok(info) => println!("   ✅ Safe: {} - {}", info.browser_name, info.title),
-        Err(e) => println!("   ❌ Safe failed: {}", e),
+        Ok(info) => println!(
+            "   ✅ Safe: {browser_name} - {title}",
+            browser_name = info.browser_name,
+            title = info.title
+        ),
+        Err(e) => println!("   ❌ Safe failed: {e}"),
     }
 
     // 4. 明示的指定
@@ -146,8 +161,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ExtractionMethod::PowerShell,
     ] {
         match get_browser_info_with_method(method).await {
-            Ok(info) => println!("   ✅ {:?}: {} - {}", method, info.browser_name, info.title),
-            Err(e) => println!("   ❌ {:?} failed: {}", method, e),
+            Ok(info) => println!(
+                "   ✅ {method:?}: {browser_name} - {title}",
+                browser_name = info.browser_name,
+                title = info.title
+            ),
+            Err(e) => println!("   ❌ {method:?} failed: {e}"),
         }
     }
 

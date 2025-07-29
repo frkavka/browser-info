@@ -308,26 +308,24 @@ fn extract_url_from_title(title: &str) -> Result<String, BrowserInfoError> {
     }
 }
 
+// Clipboard functionality removed due to security vulnerability RUSTSEC-2020-0097
+// TODO: Implement clipboard functionality using native macOS APIs if needed
+
 // 将来のキーボードシミュレーション実装用（現在は未使用）
 #[allow(dead_code)]
 fn get_clipboard_content() -> Result<String, BrowserInfoError> {
-    // clipboard crateを使用した実装（実機でテスト必要）
-    use clipboard::ClipboardProvider;
-    let mut ctx = clipboard::ClipboardContext::new()
-        .map_err(|e| BrowserInfoError::PlatformError(format!("Clipboard context error: {}", e)))?;
-
-    ctx.get_contents()
-        .map_err(|e| BrowserInfoError::PlatformError(format!("Clipboard read error: {}", e)))
+    // TODO: Implement using native macOS Pasteboard APIs
+    Err(BrowserInfoError::PlatformError(
+        "Clipboard functionality not implemented".to_string(),
+    ))
 }
 
 #[allow(dead_code)]
-fn set_clipboard_content(content: &str) -> Result<(), BrowserInfoError> {
-    use clipboard::ClipboardProvider;
-    let mut ctx = clipboard::ClipboardContext::new()
-        .map_err(|e| BrowserInfoError::PlatformError(format!("Clipboard context error: {}", e)))?;
-
-    ctx.set_contents(content.to_string())
-        .map_err(|e| BrowserInfoError::PlatformError(format!("Clipboard write error: {}", e)))
+fn set_clipboard_content(_content: &str) -> Result<(), BrowserInfoError> {
+    // TODO: Implement using native macOS Pasteboard APIs
+    Err(BrowserInfoError::PlatformError(
+        "Clipboard functionality not implemented".to_string(),
+    ))
 }
 
 #[allow(dead_code)]

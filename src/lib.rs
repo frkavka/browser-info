@@ -205,7 +205,7 @@ pub async fn get_browser_info() -> Result<BrowserInfo, BrowserInfoError> {
             return Ok(info);
         }
         Err(e) => {
-            println!("⚠️ PowerShell failed: {}, trying DevTools...", e);
+            println!("⚠️ PowerShell failed: {e}, trying DevTools...");
         }
     }
 

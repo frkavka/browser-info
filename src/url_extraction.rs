@@ -18,6 +18,7 @@ pub fn extract_url(
 
     #[cfg(target_os = "linux")]
     {
+        let _ = (window, browser_type); // Suppress unused variable warnings
         // TODO: Implement Linux URL extraction
         Err(BrowserInfoError::PlatformError(
             "Linux not yet implemented".to_string(),
@@ -26,6 +27,7 @@ pub fn extract_url(
 
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
     {
+        let _ = (window, browser_type); // Suppress unused variable warnings
         Err(BrowserInfoError::PlatformError(
             "Unsupported platform".to_string(),
         ))

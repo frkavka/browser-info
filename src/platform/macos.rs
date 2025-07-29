@@ -25,10 +25,7 @@ pub fn extract_url(
 }
 
 fn try_applescript_extraction(browser_type: &BrowserType) -> Result<String, BrowserInfoError> {
-    println!(
-        "🔧 Attempting AppleScript extraction for {:?}",
-        browser_type
-    );
+    println!("🔧 Attempting AppleScript extraction for {browser_type:?}");
 
     // まず外部スクリプトファイルを試行
     if let Ok(url) = try_external_applescript_file() {
@@ -83,8 +80,7 @@ fn try_applescript_extraction(browser_type: &BrowserType) -> Result<String, Brow
         }
         _ => {
             return Err(BrowserInfoError::PlatformError(format!(
-                "Unsupported browser for AppleScript: {:?}",
-                browser_type
+                "Unsupported browser for AppleScript: {browser_type:?}"
             )));
         }
     };
@@ -107,7 +103,7 @@ fn try_external_applescript_file() -> Result<String, BrowserInfoError> {
 
     for script_path in &script_paths {
         if std::path::Path::new(script_path).exists() {
-            println!("📁 Found AppleScript file at: {}", script_path);
+            println!("📁 Found AppleScript file at: {script_path}");
             return execute_external_applescript_file(script_path);
         }
     }
@@ -125,13 +121,13 @@ fn execute_external_applescript_file(script_path: &str) -> Result<String, Browse
     let start_time = Instant::now();
     let timeout = Duration::from_secs(5);
 
-    println!("🔧 Executing external AppleScript file: {}", script_path);
+    println!("🔧 Executing external AppleScript file: {script_path}");
 
     let output = Command::new("osascript")
         .arg(script_path)
         .output()
         .map_err(|e| {
-            BrowserInfoError::PlatformError(format!("AppleScript file execution error: {}", e))
+            BrowserInfoError::PlatformError(format!("AppleScript file execution error: {e}"))
         })?;
 
     if start_time.elapsed() > timeout {
@@ -140,7 +136,7 @@ fn execute_external_applescript_file(script_path: &str) -> Result<String, Browse
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     if !stderr.is_empty() {
-        println!("⚠️ AppleScript stderr: {}", stderr);
+        println!("⚠️ AppleScript stderr: {stderr}");
     }
 
     if !output.status.success() {
@@ -151,7 +147,7 @@ fn execute_external_applescript_file(script_path: &str) -> Result<String, Browse
     }
 
     let stdout = String::from_utf8(output.stdout).map_err(|e| {
-        BrowserInfoError::PlatformError(format!("AppleScript output parsing error: {}", e))
+        BrowserInfoError::PlatformError(format!("AppleScript output parsing error: {e}"))
     })?;
 
     parse_applescript_output(&stdout)
@@ -171,7 +167,7 @@ fn execute_inline_applescript(script: &str) -> Result<String, BrowserInfoError> 
         .arg(script)
         .output()
         .map_err(|e| {
-            BrowserInfoError::PlatformError(format!("AppleScript execution error: {}", e))
+            BrowserInfoError::PlatformError(format!("AppleScript execution error: {e}"))
         })?;
 
     if start_time.elapsed() > timeout {
@@ -180,7 +176,7 @@ fn execute_inline_applescript(script: &str) -> Result<String, BrowserInfoError> 
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     if !stderr.is_empty() {
-        println!("⚠️ AppleScript stderr: {}", stderr);
+        println!("⚠️ AppleScript stderr: {stderr}");
     }
 
     if !output.status.success() {
@@ -191,7 +187,7 @@ fn execute_inline_applescript(script: &str) -> Result<String, BrowserInfoError> 
     }
 
     let stdout = String::from_utf8(output.stdout).map_err(|e| {
-        BrowserInfoError::PlatformError(format!("AppleScript output parsing error: {}", e))
+        BrowserInfoError::PlatformError(format!("AppleScript output parsing error: {e}"))
     })?;
 
     let url = stdout.trim().to_string();
@@ -200,8 +196,7 @@ fn execute_inline_applescript(script: &str) -> Result<String, BrowserInfoError> 
         Ok(url)
     } else {
         Err(BrowserInfoError::InvalidUrl(format!(
-            "Invalid URL format from AppleScript: {}",
-            url
+            "Invalid URL format from AppleScript: {url}"
         )))
     }
 }
@@ -226,7 +221,7 @@ fn parse_applescript_output(output: &str) -> Result<String, BrowserInfoError> {
         ));
     }
 
-    println!("📤 AppleScript result line: {}", result_line);
+    println!("📤 AppleScript result line: {result_line}");
 
     let parts: Vec<&str> = result_line.split('|').collect();
 
@@ -235,20 +230,18 @@ fn parse_applescript_output(output: &str) -> Result<String, BrowserInfoError> {
             "SUCCESS" => {
                 let url = parts[1].trim();
                 if url.starts_with("http") || url.starts_with("file://") {
-                    println!("✅ AppleScript extraction successful: {}", url);
+                    println!("✅ AppleScript extraction successful: {url}");
                     Ok(url.to_string())
                 } else {
                     Err(BrowserInfoError::InvalidUrl(format!(
-                        "Invalid URL from AppleScript: {}",
-                        url
+                        "Invalid URL from AppleScript: {url}"
                     )))
                 }
             }
             "ERROR" => {
                 let error_msg = parts[1].trim();
                 Err(BrowserInfoError::PlatformError(format!(
-                    "AppleScript error: {}",
-                    error_msg
+                    "AppleScript error: {error_msg}"
                 )))
             }
             _ => {
@@ -281,7 +274,7 @@ fn try_keyboard_extraction() -> Result<String, BrowserInfoError> {
 
 /// タイトルからのURL推測（最終フォールバック）
 fn extract_url_from_title(title: &str) -> Result<String, BrowserInfoError> {
-    println!("🔍 macOS fallback: extracting URL from title: {}", title);
+    println!("🔍 macOS fallback: extracting URL from title: {title}");
 
     let title_lower = title.to_lowercase();
 
@@ -302,8 +295,7 @@ fn extract_url_from_title(title: &str) -> Result<String, BrowserInfoError> {
         Ok("https://www.reddit.com".to_string())
     } else {
         Err(BrowserInfoError::UrlExtractionFailed(format!(
-            "Cannot determine URL from macOS title: {}",
-            title
+            "Cannot determine URL from macOS title: {title}"
         )))
     }
 }

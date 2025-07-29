@@ -13,17 +13,20 @@ pub fn extract_url(
     window: &ActiveWindow,
     _browser_type: &BrowserType,
 ) -> Result<String, BrowserInfoError> {
-    println!("🔍 Windows URL extraction for: {}", window.app_name);
+    println!(
+        "🔍 Windows URL extraction for: {app_name}",
+        app_name = window.app_name
+    );
 
     // ローカルPowerShellスクリプトを実行
     if let Ok(url) = try_local_powershell_script() {
-        println!("✅ Local PowerShell script succeeded: {}", url);
+        println!("✅ Local PowerShell script succeeded: {url}");
         return Ok(url);
     }
 
     // フォールバック: 内蔵スクリプト
     if let Ok(url) = try_embedded_powershell_script() {
-        println!("✅ Embedded PowerShell script succeeded: {}", url);
+        println!("✅ Embedded PowerShell script succeeded: {url}");
         return Ok(url);
     }
 
@@ -49,7 +52,7 @@ fn try_local_powershell_script() -> Result<String, BrowserInfoError> {
 
     for script_path in &script_paths {
         if Path::new(script_path).exists() {
-            println!("📁 Found PowerShell script at: {}", script_path);
+            println!("📁 Found PowerShell script at: {script_path}");
             return execute_powershell_file(script_path);
         }
     }
@@ -65,7 +68,7 @@ fn execute_powershell_file(script_path: &str) -> Result<String, BrowserInfoError
     let start_time = Instant::now();
     let timeout = Duration::from_secs(10);
 
-    println!("🔧 Executing PowerShell file: {}", script_path);
+    println!("🔧 Executing PowerShell file: {script_path}");
 
     let output = Command::new("powershell")
         .args([
@@ -77,7 +80,7 @@ fn execute_powershell_file(script_path: &str) -> Result<String, BrowserInfoError
         ])
         .output()
         .map_err(|e| {
-            BrowserInfoError::PlatformError(format!("PowerShell file execution error: {}", e))
+            BrowserInfoError::PlatformError(format!("PowerShell file execution error: {e}"))
         })?;
 
     if start_time.elapsed() > timeout {
@@ -86,7 +89,7 @@ fn execute_powershell_file(script_path: &str) -> Result<String, BrowserInfoError
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     if !stderr.is_empty() {
-        println!("⚠️ PowerShell stderr: {}", stderr);
+        println!("⚠️ PowerShell stderr: {stderr}");
     }
 
     if !output.status.success() {
@@ -97,7 +100,7 @@ fn execute_powershell_file(script_path: &str) -> Result<String, BrowserInfoError
     }
 
     let stdout = String::from_utf8(output.stdout).map_err(|e| {
-        BrowserInfoError::PlatformError(format!("PowerShell output parsing error: {}", e))
+        BrowserInfoError::PlatformError(format!("PowerShell output parsing error: {e}"))
     })?;
 
     parse_atode_powershell_output(&stdout)
@@ -175,7 +178,7 @@ fn execute_embedded_powershell_script(script: &str) -> Result<String, BrowserInf
         ])
         .output()
         .map_err(|e| {
-            BrowserInfoError::PlatformError(format!("Embedded PowerShell execution error: {}", e))
+            BrowserInfoError::PlatformError(format!("Embedded PowerShell execution error: {e}"))
         })?;
 
     if start_time.elapsed() > timeout {
@@ -189,7 +192,7 @@ fn execute_embedded_powershell_script(script: &str) -> Result<String, BrowserInf
     }
 
     let stdout = String::from_utf8(output.stdout).map_err(|e| {
-        BrowserInfoError::PlatformError(format!("Embedded script output parsing error: {}", e))
+        BrowserInfoError::PlatformError(format!("Embedded script output parsing error: {e}"))
     })?;
 
     parse_simple_powershell_output(&stdout)
@@ -215,7 +218,7 @@ fn parse_atode_powershell_output(output: &str) -> Result<String, BrowserInfoErro
         ));
     }
 
-    println!("📤 PowerShell result line: {}", result_line);
+    println!("📤 PowerShell result line: {result_line}");
 
     let parts: Vec<&str> = result_line.split('|').collect();
 
@@ -298,7 +301,7 @@ fn parse_simple_powershell_output(output: &str) -> Result<String, BrowserInfoErr
 
 /// タイトルからのURL推測（最終フォールバック）
 fn extract_url_from_title(title: &str) -> Result<String, BrowserInfoError> {
-    println!("🔍 Final fallback: extracting URL from title: {}", title);
+    println!("🔍 Final fallback: extracting URL from title: {title}");
 
     let title_lower = title.to_lowercase();
 

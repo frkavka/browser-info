@@ -32,7 +32,7 @@ impl ChromeDevToolsExtractor {
             .build()
             .unwrap();
 
-        let url = format!("http://localhost:{}/json/version", port);
+        let url = format!("http://localhost:{port}/json/version");
         client.get(&url).send().await.is_ok()
     }
 
@@ -62,19 +62,19 @@ impl ChromeDevToolsExtractor {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(Self::TIMEOUT_SECS))
             .build()
-            .map_err(|e| BrowserInfoError::Other(format!("Network error: {}", e)))?;
+            .map_err(|e| BrowserInfoError::Other(format!("Network error: {e}")))?;
 
-        let url = format!("http://localhost:{}/json", port);
+        let url = format!("http://localhost:{port}/json");
         let response = client
             .get(&url)
             .send()
             .await
-            .map_err(|e| BrowserInfoError::Other(format!("Network error: {}", e)))?;
+            .map_err(|e| BrowserInfoError::Other(format!("Network error: {e}")))?;
 
         let tabs: Vec<ChromeTab> = response
             .json()
             .await
-            .map_err(|e| BrowserInfoError::Other(format!("Parse error: {}", e)))?;
+            .map_err(|e| BrowserInfoError::Other(format!("Parse error: {e}")))?;
 
         Ok(tabs)
     }

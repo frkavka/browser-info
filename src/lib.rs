@@ -1,15 +1,15 @@
 //! # browser-info
-//! 
+//!
 //! Cross-platform library for retrieving active browser URL and detailed information.
-//! 
+//!
 //! Built on top of `active-win-pos-rs` for reliable window detection, with specialized
 //! browser information extraction capabilities.
-//! 
+//!
 //! ## Quick Start
-//! 
+//!
 //! ```rust
 //! use browser_info::get_active_browser_info;
-//! 
+//!
 //! match get_active_browser_info() {
 //!     Ok(info) => {
 //!         println!("Current URL: {}", info.url);
@@ -24,11 +24,11 @@
 // Import Section
 //================================================================================================
 
-use serde::{Deserialize, Serialize};
 use active_win_pos_rs::get_active_window;
+use serde::{Deserialize, Serialize};
 
-pub mod error;
 pub mod browser_detection;
+pub mod error;
 pub mod url_extraction;
 
 #[cfg(target_os = "windows")]
@@ -96,15 +96,15 @@ pub struct WindowPosition {
 //================================================================================================
 
 /// Retrieve information about the currently active browser
-/// 
-/// This function combines window detection (via `active-win-pos-rs`) with 
+///
+/// This function combines window detection (via `active-win-pos-rs`) with
 /// specialized browser information extraction.
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```rust
 /// use browser_info::get_active_browser_info;
-/// 
+///
 /// match get_active_browser_info() {
 ///     Ok(info) => {
 ///         println!("URL: {}", info.url);
@@ -113,7 +113,6 @@ pub struct WindowPosition {
 ///     Err(e) => eprintln!("Failed to get browser info: {}", e),
 /// }
 /// ```
-
 pub fn get_active_browser_info() -> Result<BrowserInfo, BrowserInfoError> {
     // Step 0: Check if the active window is browser
     if !is_browser_active() {
@@ -122,16 +121,16 @@ pub fn get_active_browser_info() -> Result<BrowserInfo, BrowserInfoError> {
 
     // Step 1: Definitely browser. Get active window using active-win-pos-rs
     let window = get_active_window().map_err(|_| BrowserInfoError::WindowNotFound)?;
-    
+
     // Step 2: Verify it's a browser window
     let browser_type = browser_detection::classify_browser(&window)?;
-    
+
     // Step 3: Extract URL using platform-specific methods
     let url = url_extraction::extract_url(&window, &browser_type)?;
-    
+
     // Step 4: Get additional browser metadata
     let metadata = browser_detection::get_browser_metadata(&window, &browser_type)?;
-    
+
     Ok(BrowserInfo {
         url,
         title: window.title,
@@ -156,9 +155,9 @@ pub fn get_active_browser_url() -> Result<String, BrowserInfoError> {
     if !is_browser_active() {
         return Err(BrowserInfoError::NotABrowser);
     }
-    
+
     let window = get_active_window().map_err(|_| BrowserInfoError::WindowNotFound)?;
-    
+
     let browser_type = browser_detection::classify_browser(&window)?;
     url_extraction::extract_url(&window, &browser_type)
 }
@@ -201,27 +200,31 @@ pub async fn get_browser_info() -> Result<BrowserInfo, BrowserInfoError> {
             println!("⚠️ PowerShell failed: {}, trying DevTools...", e);
         }
     }
-    
+
     // 2. PowerShell失敗時のみDevTools
     #[cfg(feature = "devtools")]
     if ChromeDevToolsExtractor::is_available().await {
         println!("🔄 Fallback to Chrome DevTools Protocol");
         return ChromeDevToolsExtractor::extract_browser_info().await;
     }
-    
-    Err(BrowserInfoError::Other("All extraction methods failed".to_string()))
+
+    Err(BrowserInfoError::Other(
+        "All extraction methods failed".to_string(),
+    ))
 }
 
 /// 明示的な方法指定
-pub async fn get_browser_info_with_method(method: ExtractionMethod) -> Result<BrowserInfo, BrowserInfoError> {
+pub async fn get_browser_info_with_method(
+    method: ExtractionMethod,
+) -> Result<BrowserInfo, BrowserInfoError> {
     match method {
         ExtractionMethod::Auto => get_browser_info().await,
         #[cfg(feature = "devtools")]
         ExtractionMethod::DevTools => get_browser_info_detailed().await,
         #[cfg(not(feature = "devtools"))]
-        ExtractionMethod::DevTools => {
-            Err(BrowserInfoError::Other("DevTools feature not enabled".to_string()))
-        }
+        ExtractionMethod::DevTools => Err(BrowserInfoError::Other(
+            "DevTools feature not enabled".to_string(),
+        )),
         ExtractionMethod::PowerShell => get_browser_info_safe(),
     }
 }

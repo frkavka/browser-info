@@ -5,6 +5,7 @@ use std::time::Duration;
 
 #[derive(Debug, Deserialize)]
 struct ChromeTab {
+    #[allow(dead_code)]
     id: String,
     title: String,
     url: String,
@@ -34,7 +35,7 @@ impl ChromeDevToolsExtractor {
 
     pub async fn extract_browser_info() -> Result<BrowserInfo, BrowserError> {
         let tabs = Self::get_tabs(Self::DEFAULT_PORT).await?;
-        
+
         // 最初に見つかったページタブを返す
         let active_tab = tabs
             .into_iter()
@@ -46,10 +47,10 @@ impl ChromeDevToolsExtractor {
             title: active_tab.title,
             browser_name: "Chrome".to_string(),
             browser_type: BrowserType::Chrome,
-            version: None, // DevTools APIからは簡単には取得できない
-            tabs_count: None, // 今回は簡略化
+            version: None,       // DevTools APIからは簡単には取得できない
+            tabs_count: None,    // 今回は簡略化
             is_incognito: false, // 今回は簡略化
-            process_id: 0, // DevTools APIからは取得できない
+            process_id: 0,       // DevTools APIからは取得できない
             window_position: Default::default(), // Default trait使用
         })
     }

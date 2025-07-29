@@ -2,32 +2,31 @@
 // src/platform/windows.rs - ローカルscriptsディレクトリ対応
 // ================================================================================================
 
-use crate::{BrowserType, BrowserInfoError};
+use crate::{BrowserInfoError, BrowserType};
 use active_win_pos_rs::ActiveWindow;
+use std::path::Path;
 use std::process::Command;
 use std::time::{Duration, Instant};
-use std::path::Path;
 
 /// Windows環境でのURL抽出メイン関数
 pub fn extract_url(
-    window: &ActiveWindow, 
-    _browser_type: &BrowserType
+    window: &ActiveWindow,
+    _browser_type: &BrowserType,
 ) -> Result<String, BrowserInfoError> {
-    
     println!("🔍 Windows URL extraction for: {}", window.app_name);
-    
+
     // ローカルPowerShellスクリプトを実行
     if let Ok(url) = try_local_powershell_script() {
         println!("✅ Local PowerShell script succeeded: {}", url);
         return Ok(url);
     }
-    
+
     // フォールバック: 内蔵スクリプト
     if let Ok(url) = try_embedded_powershell_script() {
         println!("✅ Embedded PowerShell script succeeded: {}", url);
         return Ok(url);
     }
-    
+
     // 最終フォールバック: タイトルベース
     println!("⚠️  PowerShell extraction failed, using title fallback");
     extract_url_from_title(&window.title)
@@ -39,26 +38,25 @@ fn try_local_powershell_script() -> Result<String, BrowserInfoError> {
     let script_paths = [
         // メインの場所
         "src/platform/scripts/windows_get_url.ps1",
-        
         // 開発時の相対パス
         "platform/scripts/windows_get_url.ps1",
         "scripts/windows_get_url.ps1",
-        
         // 実行時の相対パス（targetディレクトリから）
         "../src/platform/scripts/windows_get_url.ps1",
         "../../src/platform/scripts/windows_get_url.ps1",
         "../../../src/platform/scripts/windows_get_url.ps1",
     ];
-    
+
     for script_path in &script_paths {
         if Path::new(script_path).exists() {
             println!("📁 Found PowerShell script at: {}", script_path);
             return execute_powershell_file(script_path);
         }
     }
-    
+
     Err(BrowserInfoError::PlatformError(
-        format!("PowerShell script not found. Expected at: src/platform/scripts/windows_get_url.ps1")
+        "PowerShell script not found. Expected at: src/platform/scripts/windows_get_url.ps1"
+            .to_string(),
     ))
 }
 
@@ -66,47 +64,49 @@ fn try_local_powershell_script() -> Result<String, BrowserInfoError> {
 fn execute_powershell_file(script_path: &str) -> Result<String, BrowserInfoError> {
     let start_time = Instant::now();
     let timeout = Duration::from_secs(10);
-    
+
     println!("🔧 Executing PowerShell file: {}", script_path);
-    
+
     let output = Command::new("powershell")
         .args([
-            "-ExecutionPolicy", "Bypass",
+            "-ExecutionPolicy",
+            "Bypass",
             "-NoProfile",
-            "-File", script_path
+            "-File",
+            script_path,
         ])
         .output()
-        .map_err(|e| BrowserInfoError::PlatformError(
-            format!("PowerShell file execution error: {}", e)
-        ))?;
-    
+        .map_err(|e| {
+            BrowserInfoError::PlatformError(format!("PowerShell file execution error: {}", e))
+        })?;
+
     if start_time.elapsed() > timeout {
         return Err(BrowserInfoError::Timeout);
     }
-    
+
     let stderr = String::from_utf8_lossy(&output.stderr);
     if !stderr.is_empty() {
         println!("⚠️ PowerShell stderr: {}", stderr);
     }
-    
+
     if !output.status.success() {
-        return Err(BrowserInfoError::PlatformError(
-            format!("PowerShell script failed with exit code: {}", output.status)
-        ));
+        return Err(BrowserInfoError::PlatformError(format!(
+            "PowerShell script failed with exit code: {}",
+            output.status
+        )));
     }
-    
-    let stdout = String::from_utf8(output.stdout)
-        .map_err(|e| BrowserInfoError::PlatformError(
-            format!("PowerShell output parsing error: {}", e)
-        ))?;
-    
+
+    let stdout = String::from_utf8(output.stdout).map_err(|e| {
+        BrowserInfoError::PlatformError(format!("PowerShell output parsing error: {}", e))
+    })?;
+
     parse_atode_powershell_output(&stdout)
 }
 
 /// 内蔵PowerShellスクリプト（フォールバック）
 fn try_embedded_powershell_script() -> Result<String, BrowserInfoError> {
     println!("🔧 Falling back to embedded PowerShell script...");
-    
+
     let script = r#"
         [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         Add-Type -AssemblyName System.Windows.Forms
@@ -156,7 +156,7 @@ fn try_embedded_powershell_script() -> Result<String, BrowserInfoError> {
             Write-Output "ERROR|$($_.Exception.Message)|embedded"
         }
     "#;
-    
+
     execute_embedded_powershell_script(script)
 }
 
@@ -164,42 +164,43 @@ fn try_embedded_powershell_script() -> Result<String, BrowserInfoError> {
 fn execute_embedded_powershell_script(script: &str) -> Result<String, BrowserInfoError> {
     let start_time = Instant::now();
     let timeout = Duration::from_secs(5);
-    
+
     let output = Command::new("powershell")
         .args([
-            "-ExecutionPolicy", "Bypass",
-            "-NoProfile", 
-            "-Command", script
+            "-ExecutionPolicy",
+            "Bypass",
+            "-NoProfile",
+            "-Command",
+            script,
         ])
         .output()
-        .map_err(|e| BrowserInfoError::PlatformError(
-            format!("Embedded PowerShell execution error: {}", e)
-        ))?;
-    
+        .map_err(|e| {
+            BrowserInfoError::PlatformError(format!("Embedded PowerShell execution error: {}", e))
+        })?;
+
     if start_time.elapsed() > timeout {
         return Err(BrowserInfoError::Timeout);
     }
-    
+
     if !output.status.success() {
         return Err(BrowserInfoError::PlatformError(
-            "Embedded PowerShell script failed".to_string()
+            "Embedded PowerShell script failed".to_string(),
         ));
     }
-    
-    let stdout = String::from_utf8(output.stdout)
-        .map_err(|e| BrowserInfoError::PlatformError(
-            format!("Embedded script output parsing error: {}", e)
-        ))?;
-    
+
+    let stdout = String::from_utf8(output.stdout).map_err(|e| {
+        BrowserInfoError::PlatformError(format!("Embedded script output parsing error: {}", e))
+    })?;
+
     parse_simple_powershell_output(&stdout)
 }
 
 /// AtodeスタイルのPowerShell出力解析
 fn parse_atode_powershell_output(output: &str) -> Result<String, BrowserInfoError> {
     println!("🔍 Parsing Atode-style PowerShell output...");
-    
+
     let lines: Vec<&str> = output.lines().collect();
-    
+
     // Atodeの出力形式: "URL|Title|ProcessName"
     let result_line = lines
         .iter()
@@ -207,45 +208,49 @@ fn parse_atode_powershell_output(output: &str) -> Result<String, BrowserInfoErro
         .find(|line| line.contains("|") && !line.trim().is_empty())
         .unwrap_or(&"")
         .trim();
-    
+
     if result_line.is_empty() {
         return Err(BrowserInfoError::UrlExtractionFailed(
-            "No valid output from Atode PowerShell script".to_string()
+            "No valid output from Atode PowerShell script".to_string(),
         ));
     }
-    
+
     println!("📤 PowerShell result line: {}", result_line);
-    
+
     let parts: Vec<&str> = result_line.split('|').collect();
-    
-    if parts.len() >= 1 {
+
+    if !parts.is_empty() {
         let url = parts[0].trim();
-        
+
         // エラーチェック
         if url.starts_with("ERROR") {
             let error_msg = parts.get(1).unwrap_or(&"Unknown error").trim();
             return Err(BrowserInfoError::PlatformError(error_msg.to_string()));
         }
-        
+
         if url.starts_with("NOT_BROWSER") {
             return Err(BrowserInfoError::NotABrowser);
         }
-        
+
         // 正常なURL
         if url.starts_with("http") || url.starts_with("file://") {
             let title = parts.get(1).unwrap_or(&"").trim();
             let process = parts.get(2).unwrap_or(&"").trim();
-            
-            println!("✅ Parsed - URL: {}, Title: {}, Process: {}", url, title, process);
+
+            println!(
+                "✅ Parsed - URL: {}, Title: {}, Process: {}",
+                url, title, process
+            );
             Ok(url.to_string())
         } else {
-            Err(BrowserInfoError::InvalidUrl(
-                format!("Invalid URL format from script: {}", url)
-            ))
+            Err(BrowserInfoError::InvalidUrl(format!(
+                "Invalid URL format from script: {}",
+                url
+            )))
         }
     } else {
         Err(BrowserInfoError::UrlExtractionFailed(
-            "Invalid Atode PowerShell output format".to_string()
+            "Invalid Atode PowerShell output format".to_string(),
         ))
     }
 }
@@ -259,15 +264,15 @@ fn parse_simple_powershell_output(output: &str) -> Result<String, BrowserInfoErr
         .find(|line| line.contains("|"))
         .unwrap_or(&"")
         .trim();
-    
+
     if result_line.is_empty() {
         return Err(BrowserInfoError::UrlExtractionFailed(
-            "No output from embedded PowerShell script".to_string()
+            "No output from embedded PowerShell script".to_string(),
         ));
     }
-    
+
     let parts: Vec<&str> = result_line.split('|').collect();
-    
+
     if parts.len() >= 2 {
         match parts[0] {
             "SUCCESS" => {
@@ -278,21 +283,15 @@ fn parse_simple_powershell_output(output: &str) -> Result<String, BrowserInfoErr
                     Err(BrowserInfoError::InvalidUrl(url.to_string()))
                 }
             }
-            "FAILED" => {
-                Err(BrowserInfoError::UrlExtractionFailed(parts[1].to_string()))
-            }
-            "ERROR" => {
-                Err(BrowserInfoError::PlatformError(parts[1].to_string()))
-            }
-            _ => {
-                Err(BrowserInfoError::UrlExtractionFailed(
-                    "Unknown embedded script output format".to_string()
-                ))
-            }
+            "FAILED" => Err(BrowserInfoError::UrlExtractionFailed(parts[1].to_string())),
+            "ERROR" => Err(BrowserInfoError::PlatformError(parts[1].to_string())),
+            _ => Err(BrowserInfoError::UrlExtractionFailed(
+                "Unknown embedded script output format".to_string(),
+            )),
         }
     } else {
         Err(BrowserInfoError::UrlExtractionFailed(
-            "Invalid embedded PowerShell output".to_string()
+            "Invalid embedded PowerShell output".to_string(),
         ))
     }
 }
@@ -300,9 +299,9 @@ fn parse_simple_powershell_output(output: &str) -> Result<String, BrowserInfoErr
 /// タイトルからのURL推測（最終フォールバック）
 fn extract_url_from_title(title: &str) -> Result<String, BrowserInfoError> {
     println!("🔍 Final fallback: extracting URL from title: {}", title);
-    
+
     let title_lower = title.to_lowercase();
-    
+
     if title_lower.contains("claude") {
         Ok("https://claude.ai/chat".to_string())
     } else if title_lower.contains("github") {
@@ -314,8 +313,9 @@ fn extract_url_from_title(title: &str) -> Result<String, BrowserInfoError> {
     } else if title_lower.contains("stackoverflow") {
         Ok("https://stackoverflow.com".to_string())
     } else {
-        Err(BrowserInfoError::UrlExtractionFailed(
-            format!("Cannot determine URL from title: {}", title)
-        ))
+        Err(BrowserInfoError::UrlExtractionFailed(format!(
+            "Cannot determine URL from title: {}",
+            title
+        )))
     }
 }

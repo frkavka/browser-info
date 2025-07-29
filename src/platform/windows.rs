@@ -240,15 +240,11 @@ fn parse_atode_powershell_output(output: &str) -> Result<String, BrowserInfoErro
             let title = parts.get(1).unwrap_or(&"").trim();
             let process = parts.get(2).unwrap_or(&"").trim();
 
-            println!(
-                "✅ Parsed - URL: {}, Title: {}, Process: {}",
-                url, title, process
-            );
+            println!("✅ Parsed - URL: {url}, Title: {title}, Process: {process}",);
             Ok(url.to_string())
         } else {
             Err(BrowserInfoError::InvalidUrl(format!(
-                "Invalid URL format from script: {}",
-                url
+                "Invalid URL format from script: {url}",
             )))
         }
     } else {
@@ -317,8 +313,7 @@ fn extract_url_from_title(title: &str) -> Result<String, BrowserInfoError> {
         Ok("https://stackoverflow.com".to_string())
     } else {
         Err(BrowserInfoError::UrlExtractionFailed(format!(
-            "Cannot determine URL from title: {}",
-            title
+            "Cannot determine URL from title: {title}",
         )))
     }
 }

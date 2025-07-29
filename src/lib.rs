@@ -31,12 +31,14 @@ pub mod browser_detection;
 pub mod error;
 pub mod url_extraction;
 
-#[cfg(target_os = "windows")]
 pub mod platform;
 
 pub use error::BrowserInfoError;
 
-#[cfg(feature = "devtools")]
+#[cfg(any(
+    all(feature = "devtools", target_os = "windows"),
+    all(doc, feature = "devtools")
+))]
 pub use platform::chrome_devtools::ChromeDevToolsExtractor;
 
 //================================================================================================
@@ -177,13 +179,19 @@ pub fn get_browser_info_safe() -> Result<BrowserInfo, BrowserInfoError> {
 }
 
 /// 詳細情報重視（Chrome DevTools - デバッグモード必要）
-#[cfg(feature = "devtools")]
+#[cfg(any(
+    all(feature = "devtools", target_os = "windows"),
+    all(doc, feature = "devtools")
+))]
 pub async fn get_browser_info_detailed() -> Result<BrowserInfo, BrowserInfoError> {
     ChromeDevToolsExtractor::extract_browser_info().await
 }
 
 /// 後方互換性のためのエイリアス
-#[cfg(feature = "devtools")]
+#[cfg(any(
+    all(feature = "devtools", target_os = "windows"),
+    all(doc, feature = "devtools")
+))]
 pub async fn get_browser_info_fast() -> Result<BrowserInfo, BrowserInfoError> {
     get_browser_info_detailed().await
 }
@@ -202,7 +210,7 @@ pub async fn get_browser_info() -> Result<BrowserInfo, BrowserInfoError> {
     }
 
     // 2. PowerShell失敗時のみDevTools
-    #[cfg(feature = "devtools")]
+    #[cfg(all(feature = "devtools", target_os = "windows"))]
     if ChromeDevToolsExtractor::is_available().await {
         println!("🔄 Fallback to Chrome DevTools Protocol");
         return ChromeDevToolsExtractor::extract_browser_info().await;
@@ -219,11 +227,17 @@ pub async fn get_browser_info_with_method(
 ) -> Result<BrowserInfo, BrowserInfoError> {
     match method {
         ExtractionMethod::Auto => get_browser_info().await,
-        #[cfg(feature = "devtools")]
+        #[cfg(any(
+            all(feature = "devtools", target_os = "windows"),
+            all(doc, feature = "devtools")
+        ))]
         ExtractionMethod::DevTools => get_browser_info_detailed().await,
-        #[cfg(not(feature = "devtools"))]
+        #[cfg(not(any(
+            all(feature = "devtools", target_os = "windows"),
+            all(doc, feature = "devtools")
+        )))]
         ExtractionMethod::DevTools => Err(BrowserInfoError::Other(
-            "DevTools feature not enabled".to_string(),
+            "DevTools feature not available on this platform".to_string(),
         )),
         ExtractionMethod::PowerShell => get_browser_info_safe(),
     }

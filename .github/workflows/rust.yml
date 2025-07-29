@@ -59,7 +59,8 @@ jobs:
     - name: Build (no default features)
       run: cargo build --verbose --no-default-features
 
-    - name: Build (devtools feature)
+    - name: Build (devtools feature - Windows only)
+      if: matrix.os == 'windows-latest'
       run: cargo build --verbose --features devtools
 
     - name: Run tests
@@ -68,7 +69,8 @@ jobs:
     - name: Run tests (no default features)
       run: cargo test --verbose --no-default-features
 
-    - name: Run tests (devtools feature)  
+    - name: Run tests (devtools feature - Windows only)
+      if: matrix.os == 'windows-latest'
       run: cargo test --verbose --features devtools
 
     - name: Build examples
@@ -100,4 +102,6 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
     
     - name: Build documentation
-      run: cargo doc --all-features --no-deps
+      run: cargo doc --no-deps --features devtools
+      env:
+        RUSTDOCFLAGS: "--cfg docsrs"

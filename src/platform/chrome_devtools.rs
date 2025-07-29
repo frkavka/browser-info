@@ -1,5 +1,8 @@
-use crate::error::BrowserError;
-use crate::{BrowserInfo, BrowserType};
+//! Chrome DevTools Protocol integration for detailed browser information extraction.
+//!
+//! This module is only available on Windows with the `devtools` feature enabled.
+
+use crate::{BrowserInfo, BrowserInfoError, BrowserType};
 use serde::Deserialize;
 use std::time::Duration;
 
@@ -33,14 +36,14 @@ impl ChromeDevToolsExtractor {
         client.get(&url).send().await.is_ok()
     }
 
-    pub async fn extract_browser_info() -> Result<BrowserInfo, BrowserError> {
+    pub async fn extract_browser_info() -> Result<BrowserInfo, BrowserInfoError> {
         let tabs = Self::get_tabs(Self::DEFAULT_PORT).await?;
 
         // 最初に見つかったページタブを返す
         let active_tab = tabs
             .into_iter()
             .find(|tab| tab.tab_type == "page")
-            .ok_or(BrowserError::NoActiveTabs)?;
+            .ok_or(BrowserInfoError::Other("No active tabs found".to_string()))?;
 
         Ok(BrowserInfo {
             url: active_tab.url,
@@ -55,23 +58,23 @@ impl ChromeDevToolsExtractor {
         })
     }
 
-    async fn get_tabs(port: u16) -> Result<Vec<ChromeTab>, BrowserError> {
+    async fn get_tabs(port: u16) -> Result<Vec<ChromeTab>, BrowserInfoError> {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(Self::TIMEOUT_SECS))
             .build()
-            .map_err(|e| BrowserError::NetworkError(e.to_string()))?;
+            .map_err(|e| BrowserInfoError::Other(format!("Network error: {}", e)))?;
 
         let url = format!("http://localhost:{}/json", port);
         let response = client
             .get(&url)
             .send()
             .await
-            .map_err(|e| BrowserError::NetworkError(e.to_string()))?;
+            .map_err(|e| BrowserInfoError::Other(format!("Network error: {}", e)))?;
 
         let tabs: Vec<ChromeTab> = response
             .json()
             .await
-            .map_err(|e| BrowserError::ParseError(e.to_string()))?;
+            .map_err(|e| BrowserInfoError::Other(format!("Parse error: {}", e)))?;
 
         Ok(tabs)
     }

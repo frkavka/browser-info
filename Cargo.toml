@@ -40,7 +40,7 @@ winapi = { version = "0.3", features = [
   cocoa = "0.25"
   core-foundation = "0.10"
   core-graphics = "0.23"
-  clipboard = "0.5"
+  # clipboard = "0.5"  # Removed due to security vulnerability RUSTSEC-2020-0097
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # For Linux(unimplemented)

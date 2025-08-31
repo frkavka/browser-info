@@ -5,6 +5,11 @@
 [![Documentation](https://docs.rs/browser-info/badge.svg)](https://docs.rs/browser-info)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+## 🏆 Used by
+- **[Atode-GUI(mine)](https://github.com/frkavka/Atode-GUI)** - Read-later article management tool with quick save functionality
+
+*If you use browser-info in your project, let me know and I'll add you to the list!*
+
 🚀 Cross-platform library for retrieving active browser URL and detailed information.
 
 Fast, reliable, and easy-to-use browser information extraction with multiple strategies.

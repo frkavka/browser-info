@@ -3,7 +3,11 @@
     "allow": [
       "Bash(cargo audit:*)",
       "Bash(cargo clippy:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(cargo build:*)",
+      "Bash(cargo fmt:*)",
+      "Bash(cargo test:*)",
+      "Bash(cargo check:*)"
     ],
     "deny": []
   }

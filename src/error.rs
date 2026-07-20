@@ -35,7 +35,7 @@ pub enum BrowserInfoError {
     Timeout,
 
     /// Permission denied (e.g., accessibility permissions on macOS)
-    #[error("Permission denied")]
+    #[error("Permission denied: grant Automation access to the browser in System Settings > Privacy & Security > Automation")]
     PermissionDenied,
 
     #[error("Network error: {0}")]

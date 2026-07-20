@@ -11,9 +11,10 @@ pub fn extract_url(
     browser_type: &BrowserType,
 ) -> Result<String, BrowserInfoError> {
     // 1. AppleScript
-    if let Ok(url) = try_applescript_extraction(browser_type) {
-        return Ok(url);
-    }
+    let applescript_err = match try_applescript_extraction(browser_type) {
+        Ok(url) => return Ok(url),
+        Err(e) => e,
+    };
 
     // 2.キーボードシミュレーション（win版と同じアプローチ）
     if let Ok(url) = try_keyboard_extraction() {
@@ -21,7 +22,13 @@ pub fn extract_url(
     }
 
     // 3. タイトル推測 (最終手段)
-    extract_url_from_title(&window.title)
+    if let Ok(url) = extract_url_from_title(&window.title) {
+        return Ok(url);
+    }
+
+    // 全滅。タイトル推測失敗の汎用メッセージより、AppleScriptの実際の失敗理由
+    // （権限拒否など）の方が診断に役立つのでそちらを返す
+    Err(applescript_err)
 }
 
 fn try_applescript_extraction(browser_type: &BrowserType) -> Result<String, BrowserInfoError> {
@@ -140,10 +147,7 @@ fn execute_external_applescript_file(script_path: &str) -> Result<String, Browse
     }
 
     if !output.status.success() {
-        return Err(BrowserInfoError::PlatformError(format!(
-            "AppleScript file failed with exit code: {}",
-            output.status
-        )));
+        return Err(osascript_error(&stderr, output.status.to_string()));
     }
 
     let stdout = String::from_utf8(output.stdout).map_err(|e| {
@@ -151,6 +155,25 @@ fn execute_external_applescript_file(script_path: &str) -> Result<String, Browse
     })?;
 
     parse_applescript_output(&stdout)
+}
+
+/// osascriptの失敗をエラー種別に分類する。
+/// Automation権限が未許可の場合、stderrに"Not authorized"やエラーコード-1743が
+/// 含まれるため、これを`PermissionDenied`として区別し、呼び出し元が
+/// 「システム設定でオートメーション権限を確認してください」のような
+/// 具体的な案内を出せるようにする。
+fn osascript_error(stderr: &str, exit_status: String) -> BrowserInfoError {
+    let stderr_lower = stderr.to_lowercase();
+    if stderr_lower.contains("not authorized") || stderr.contains("-1743") {
+        BrowserInfoError::PermissionDenied
+    } else if stderr.trim().is_empty() {
+        BrowserInfoError::PlatformError(format!("AppleScript failed with exit code: {exit_status}"))
+    } else {
+        BrowserInfoError::PlatformError(format!(
+            "AppleScript failed with exit code {exit_status}: {}",
+            stderr.trim()
+        ))
+    }
 }
 
 /// インライン AppleScript を実行
@@ -180,10 +203,7 @@ fn execute_inline_applescript(script: &str) -> Result<String, BrowserInfoError> 
     }
 
     if !output.status.success() {
-        return Err(BrowserInfoError::PlatformError(format!(
-            "AppleScript failed with exit code: {}",
-            output.status
-        )));
+        return Err(osascript_error(&stderr, output.status.to_string()));
     }
 
     let stdout = String::from_utf8(output.stdout).map_err(|e| {

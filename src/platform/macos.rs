@@ -79,6 +79,24 @@ fn try_applescript_extraction(browser_type: &BrowserType) -> Result<String, Brow
                 end if
             end tell"#
         }
+        BrowserType::Vivaldi => {
+            r#"tell application "Vivaldi"
+                if (count of windows) > 0 then
+                    get URL of active tab of front window
+                else
+                    error "No Vivaldi windows open"
+                end if
+            end tell"#
+        }
+        BrowserType::Opera => {
+            r#"tell application "Opera"
+                if (count of windows) > 0 then
+                    get URL of active tab of front window
+                else
+                    error "No Opera windows open"
+                end if
+            end tell"#
+        }
         BrowserType::Firefox => {
             // FirefoxはAppleScript未対応なのでキーボード方式にフォールバック
             return Err(BrowserInfoError::PlatformError(

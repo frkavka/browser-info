@@ -127,15 +127,30 @@ pub fn get_active_browser_info() -> Result<BrowserInfo, BrowserInfoError> {
     // Step 2: Verify it's a browser window
     let browser_type = browser_detection::classify_browser(&window)?;
 
-    // Step 3: Extract URL using platform-specific methods
-    let url = url_extraction::extract_url(&window, &browser_type)?;
+    // Step 3: Extract URL (and, where the platform provides it, the page title)
+    let page = url_extraction::extract_page(&window, &browser_type)?;
+
+    // タイトルの出所: プラットフォーム抽出（macOSのAppleScript等）を優先し、
+    // 無いときだけウィンドウ名。macOSのウィンドウ名は画面収録の権限が無いと
+    // 空文字になるので、ウィンドウ名を第一の出所にしない。
+    let title = match page.title {
+        Some(title) => title,
+        None => {
+            if window.title.is_empty() {
+                println!(
+                    "⚠️ No page title available: platform extraction gave none and the window title is empty"
+                );
+            }
+            window.title.clone()
+        }
+    };
 
     // Step 4: Get additional browser metadata
     let metadata = browser_detection::get_browser_metadata(&window, &browser_type)?;
 
     Ok(BrowserInfo {
-        url,
-        title: window.title,
+        url: page.url,
+        title,
         browser_name: window.app_name,
         browser_type,
         version: metadata.version,

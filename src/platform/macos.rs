@@ -2,28 +2,48 @@
 // src/platform/macos.rs
 // ================================================================================================
 
+use crate::url_extraction::ExtractedPage;
 use crate::{BrowserInfoError, BrowserType};
 use active_win_pos_rs::ActiveWindow;
 use std::process::Command;
 
+/// AppleScriptがURLとタブタイトルの間に置く区切り文字（ASCII Record Separator）。
+/// URLにもタブのタイトルにも現れない文字を選んでいる。
+/// AppleScript側は `(character id 30)` で同じ文字を出力する。
+const FIELD_SEPARATOR: char = '\u{1e}';
+
+/// URLだけを返す互換API。`extract_page` を参照。
 pub fn extract_url(
     window: &ActiveWindow,
     browser_type: &BrowserType,
 ) -> Result<String, BrowserInfoError> {
-    // 1. AppleScript
+    extract_page(window, browser_type).map(|page| page.url)
+}
+
+/// アクティブなブラウザのURLとタブタイトルを取得する。
+///
+/// タイトルをここで取る理由: macOSでは `ActiveWindow::title`（`kCGWindowName`）が
+/// 画面収録の権限を持たないプロセスに対して**エラーではなく空文字**を返すため、
+/// ウィンドウ名をタイトルの出所にできない。AppleScriptはURL取得ですでに
+/// Automation権限を通しているので、同じ呼び出しでタブタイトルも一緒に取る。
+pub fn extract_page(
+    window: &ActiveWindow,
+    browser_type: &BrowserType,
+) -> Result<ExtractedPage, BrowserInfoError> {
+    // 1. AppleScript（URLとタイトルを同時に取得）
     let applescript_err = match try_applescript_extraction(browser_type) {
-        Ok(url) => return Ok(url),
+        Ok(page) => return Ok(page),
         Err(e) => e,
     };
 
     // 2.キーボードシミュレーション（win版と同じアプローチ）
     if let Ok(url) = try_keyboard_extraction() {
-        return Ok(url);
+        return Ok(ExtractedPage { url, title: None });
     }
 
     // 3. タイトル推測 (最終手段)
     if let Ok(url) = extract_url_from_title(&window.title) {
-        return Ok(url);
+        return Ok(ExtractedPage { url, title: None });
     }
 
     // 全滅。タイトル推測失敗の汎用メッセージより、AppleScriptの実際の失敗理由
@@ -31,148 +51,57 @@ pub fn extract_url(
     Err(applescript_err)
 }
 
-fn try_applescript_extraction(browser_type: &BrowserType) -> Result<String, BrowserInfoError> {
+fn try_applescript_extraction(
+    browser_type: &BrowserType,
+) -> Result<ExtractedPage, BrowserInfoError> {
     println!("🔧 Attempting AppleScript extraction for {browser_type:?}");
+    let script = applescript_for(browser_type)?;
+    let stdout = execute_inline_applescript(&script)?;
+    parse_page_output(&stdout)
+}
 
-    // まず外部スクリプトファイルを試行
-    if let Ok(url) = try_external_applescript_file() {
-        return Ok(url);
-    }
-
-    // フォールバック: インライン AppleScript
-    println!("⚠️ External script failed, trying inline AppleScript...");
-
-    let script = match browser_type {
-        BrowserType::Chrome => {
-            r#"tell application "Google Chrome"
-                if (count of windows) > 0 then
-                    get URL of active tab of front window
-                else
-                    error "No Chrome windows open"
-                end if
-            end tell"#
-        }
-        BrowserType::Safari => {
-            r#"tell application "Safari"
-                if (count of windows) > 0 then
-                    get URL of front document
-                else
-                    error "No Safari windows open"
-                end if
-            end tell"#
-        }
-        BrowserType::Edge => {
-            r#"tell application "Microsoft Edge"
-                if (count of windows) > 0 then
-                    get URL of active tab of front window
-                else
-                    error "No Edge windows open"
-                end if
-            end tell"#
-        }
-        BrowserType::Brave => {
-            r#"tell application "Brave Browser"
-                if (count of windows) > 0 then
-                    get URL of active tab of front window
-                else
-                    error "No Brave windows open"
-                end if
-            end tell"#
-        }
-        BrowserType::Vivaldi => {
-            r#"tell application "Vivaldi"
-                if (count of windows) > 0 then
-                    get URL of active tab of front window
-                else
-                    error "No Vivaldi windows open"
-                end if
-            end tell"#
-        }
-        BrowserType::Opera => {
-            r#"tell application "Opera"
-                if (count of windows) > 0 then
-                    get URL of active tab of front window
-                else
-                    error "No Opera windows open"
-                end if
-            end tell"#
-        }
-        BrowserType::Firefox => {
-            // FirefoxはAppleScript未対応なのでキーボード方式にフォールバック
-            return Err(BrowserInfoError::PlatformError(
-                "Firefox does not support AppleScript, trying keyboard method".to_string(),
-            ));
-        }
-        _ => {
-            return Err(BrowserInfoError::PlatformError(format!(
-                "Unsupported browser for AppleScript: {browser_type:?}"
-            )));
-        }
+/// ブラウザ種別ごとの AppleScript を組み立てる。
+/// 出力形式は `URL & (character id 30) & title` の1行。
+fn applescript_for(browser_type: &BrowserType) -> Result<String, BrowserInfoError> {
+    // Chromium系はスクリプティング辞書が共通（active tab of front window）
+    let chromium = |app_name: &str| {
+        format!(
+            r#"tell application "{app_name}"
+    if (count of windows) > 0 then
+        set t to active tab of front window
+        return (URL of t) & (character id 30) & (title of t)
+    else
+        error "No {app_name} windows open"
+    end if
+end tell"#
+        )
     };
 
-    execute_inline_applescript(script)
-}
-
-/// 外部AppleScriptファイルを実行
-fn try_external_applescript_file() -> Result<String, BrowserInfoError> {
-    let script_paths = [
-        // メインの場所
-        "src/platform/scripts/macos_get_url.scpt",
-        // 開発時の相対パス
-        "platform/scripts/macos_get_url.scpt",
-        "scripts/macos_get_url.scpt",
-        // 実行時の相対パス
-        "../src/platform/scripts/macos_get_url.scpt",
-        "../../src/platform/scripts/macos_get_url.scpt",
-    ];
-
-    for script_path in &script_paths {
-        if std::path::Path::new(script_path).exists() {
-            println!("📁 Found AppleScript file at: {script_path}");
-            return execute_external_applescript_file(script_path);
+    match browser_type {
+        BrowserType::Chrome => Ok(chromium("Google Chrome")),
+        BrowserType::Edge => Ok(chromium("Microsoft Edge")),
+        BrowserType::Brave => Ok(chromium("Brave Browser")),
+        BrowserType::Vivaldi => Ok(chromium("Vivaldi")),
+        BrowserType::Opera => Ok(chromium("Opera")),
+        BrowserType::Safari => Ok(r#"tell application "Safari"
+    if (count of windows) > 0 then
+        set d to front document
+        return (URL of d) & (character id 30) & (name of d)
+    else
+        error "No Safari windows open"
+    end if
+end tell"#
+            .to_string()),
+        BrowserType::Firefox => {
+            // FirefoxはAppleScript未対応なのでキーボード方式にフォールバック
+            Err(BrowserInfoError::PlatformError(
+                "Firefox does not support AppleScript, trying keyboard method".to_string(),
+            ))
         }
+        _ => Err(BrowserInfoError::PlatformError(format!(
+            "Unsupported browser for AppleScript: {browser_type:?}"
+        ))),
     }
-
-    Err(BrowserInfoError::PlatformError(
-        "AppleScript file not found. Expected at: src/platform/scripts/macos_get_url.scpt"
-            .to_string(),
-    ))
-}
-
-/// 外部AppleScriptファイルを実行
-fn execute_external_applescript_file(script_path: &str) -> Result<String, BrowserInfoError> {
-    use std::time::{Duration, Instant};
-
-    let start_time = Instant::now();
-    let timeout = Duration::from_secs(5);
-
-    println!("🔧 Executing external AppleScript file: {script_path}");
-
-    let output = Command::new("osascript")
-        .arg(script_path)
-        .output()
-        .map_err(|e| {
-            BrowserInfoError::PlatformError(format!("AppleScript file execution error: {e}"))
-        })?;
-
-    if start_time.elapsed() > timeout {
-        return Err(BrowserInfoError::Timeout);
-    }
-
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    if !stderr.is_empty() {
-        println!("⚠️ AppleScript stderr: {stderr}");
-    }
-
-    if !output.status.success() {
-        return Err(osascript_error(&stderr, output.status.to_string()));
-    }
-
-    let stdout = String::from_utf8(output.stdout).map_err(|e| {
-        BrowserInfoError::PlatformError(format!("AppleScript output parsing error: {e}"))
-    })?;
-
-    parse_applescript_output(&stdout)
 }
 
 /// osascriptの失敗をエラー種別に分類する。
@@ -194,7 +123,7 @@ fn osascript_error(stderr: &str, exit_status: String) -> BrowserInfoError {
     }
 }
 
-/// インライン AppleScript を実行
+/// インライン AppleScript を実行し、標準出力を返す
 fn execute_inline_applescript(script: &str) -> Result<String, BrowserInfoError> {
     use std::time::{Duration, Instant};
 
@@ -224,81 +153,44 @@ fn execute_inline_applescript(script: &str) -> Result<String, BrowserInfoError> 
         return Err(osascript_error(&stderr, output.status.to_string()));
     }
 
-    let stdout = String::from_utf8(output.stdout).map_err(|e| {
+    String::from_utf8(output.stdout).map_err(|e| {
         BrowserInfoError::PlatformError(format!("AppleScript output parsing error: {e}"))
-    })?;
-
-    let url = stdout.trim().to_string();
-
-    if url.starts_with("http") || url.starts_with("file://") {
-        Ok(url)
-    } else {
-        Err(BrowserInfoError::InvalidUrl(format!(
-            "Invalid URL format from AppleScript: {url}"
-        )))
-    }
+    })
 }
 
-/// AppleScript出力を解析
-fn parse_applescript_output(output: &str) -> Result<String, BrowserInfoError> {
-    println!("🔍 Parsing AppleScript output...");
+/// `URL␞title` 形式の AppleScript 出力を解析する。
+///
+/// 区切り文字が無い出力は「タイトル無し」ではなく書式不一致として失敗させる
+/// （このモジュールが組み立てたスクリプトは必ず区切り文字を出力する）。
+/// タイトルが空文字のときだけ `title: None` にする。
+fn parse_page_output(stdout: &str) -> Result<ExtractedPage, BrowserInfoError> {
+    let line = stdout.trim_end_matches(['\n', '\r']);
 
-    let lines: Vec<&str> = output.lines().collect();
+    let Some((url, title)) = line.split_once(FIELD_SEPARATOR) else {
+        return Err(BrowserInfoError::UrlExtractionFailed(format!(
+            "AppleScript output lacks the URL/title separator: {line}"
+        )));
+    };
 
-    // 外部スクリプトの出力形式: "SUCCESS|URL|method" または "ERROR|message|method"
-    let result_line = lines
-        .iter()
-        .rev()
-        .find(|line| line.contains("|") && !line.trim().is_empty())
-        .unwrap_or(&"")
-        .trim();
-
-    if result_line.is_empty() {
-        return Err(BrowserInfoError::UrlExtractionFailed(
-            "No valid output from AppleScript".to_string(),
-        ));
+    let url = url.trim();
+    if !(url.starts_with("http") || url.starts_with("file://")) {
+        return Err(BrowserInfoError::InvalidUrl(format!(
+            "Invalid URL format from AppleScript: {url}"
+        )));
     }
 
-    println!("📤 AppleScript result line: {result_line}");
-
-    let parts: Vec<&str> = result_line.split('|').collect();
-
-    if parts.len() >= 2 {
-        match parts[0] {
-            "SUCCESS" => {
-                let url = parts[1].trim();
-                if url.starts_with("http") || url.starts_with("file://") {
-                    println!("✅ AppleScript extraction successful: {url}");
-                    Ok(url.to_string())
-                } else {
-                    Err(BrowserInfoError::InvalidUrl(format!(
-                        "Invalid URL from AppleScript: {url}"
-                    )))
-                }
-            }
-            "ERROR" => {
-                let error_msg = parts[1].trim();
-                Err(BrowserInfoError::PlatformError(format!(
-                    "AppleScript error: {error_msg}"
-                )))
-            }
-            _ => {
-                // 単純な URL の場合（互換性のため）
-                let url = parts[0].trim();
-                if url.starts_with("http") || url.starts_with("file://") {
-                    Ok(url.to_string())
-                } else {
-                    Err(BrowserInfoError::UrlExtractionFailed(
-                        "Unknown AppleScript output format".to_string(),
-                    ))
-                }
-            }
-        }
+    let title = title.trim();
+    let title = if title.is_empty() {
+        println!("⚠️ AppleScript returned an empty tab title for {url}");
+        None
     } else {
-        Err(BrowserInfoError::UrlExtractionFailed(
-            "Invalid AppleScript output format".to_string(),
-        ))
-    }
+        Some(title.to_string())
+    };
+
+    Ok(ExtractedPage {
+        url: url.to_string(),
+        title,
+    })
 }
 
 fn try_keyboard_extraction() -> Result<String, BrowserInfoError> {
@@ -372,4 +264,58 @@ fn simulate_key_press(_key: u32) -> Result<(), BrowserInfoError> {
     Err(BrowserInfoError::PlatformError(
         "Key simulation not implemented".to_string(),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_url_and_title() {
+        let page = parse_page_output("https://example.com/a?b=1\u{1e}Example — Site\n").unwrap();
+        assert_eq!(page.url, "https://example.com/a?b=1");
+        assert_eq!(page.title.as_deref(), Some("Example — Site"));
+    }
+
+    #[test]
+    fn empty_title_becomes_none() {
+        let page = parse_page_output("https://example.com\u{1e}\n").unwrap();
+        assert_eq!(page.url, "https://example.com");
+        assert_eq!(page.title, None);
+    }
+
+    #[test]
+    fn missing_separator_is_a_format_error() {
+        // 旧形式（URLのみ）はタイトル無しではなく書式不一致として落とす
+        let err = parse_page_output("https://example.com\n").unwrap_err();
+        assert!(
+            matches!(err, BrowserInfoError::UrlExtractionFailed(_)),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn non_url_is_rejected() {
+        let err = parse_page_output("about:blank\u{1e}New Tab\n").unwrap_err();
+        assert!(matches!(err, BrowserInfoError::InvalidUrl(_)), "{err:?}");
+    }
+
+    #[test]
+    fn every_scriptable_browser_emits_the_separator() {
+        for browser in [
+            BrowserType::Chrome,
+            BrowserType::Edge,
+            BrowserType::Brave,
+            BrowserType::Vivaldi,
+            BrowserType::Opera,
+            BrowserType::Safari,
+        ] {
+            let script = applescript_for(&browser).unwrap();
+            assert!(
+                script.contains("(character id 30)"),
+                "{browser:?}: {script}"
+            );
+        }
+        assert!(applescript_for(&BrowserType::Firefox).is_err());
+    }
 }

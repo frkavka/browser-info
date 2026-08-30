@@ -1,6 +1,6 @@
 [package]
 name = "browser-info"
-version = "1.0.2"
+version = "1.1.0"
 edition = "2024"
 authors = ["Katy / frkavka"]
 description = "Cross-platform(planned) library retrieving active browser URL and detailed information"

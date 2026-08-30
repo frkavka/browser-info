@@ -8,6 +8,17 @@ use std::path::Path;
 use std::process::Command;
 use std::time::{Duration, Instant};
 
+/// Windows環境でのURL・タイトル抽出。
+/// Windowsではウィンドウ名がそのままタブタイトルとして信頼できるので、
+/// ここでは `title: None` を返し、呼び出し側にウィンドウ名を使わせる。
+pub fn extract_page(
+    window: &ActiveWindow,
+    browser_type: &BrowserType,
+) -> Result<crate::url_extraction::ExtractedPage, BrowserInfoError> {
+    extract_url(window, browser_type)
+        .map(|url| crate::url_extraction::ExtractedPage { url, title: None })
+}
+
 /// Windows環境でのURL抽出メイン関数
 pub fn extract_url(
     window: &ActiveWindow,

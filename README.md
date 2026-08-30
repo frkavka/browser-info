@@ -199,6 +199,10 @@ This library prioritizes security:
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
+**macOS**: `title` is empty
+- Since 1.1.0 the tab title comes from the same AppleScript call as the URL, so it no longer depends on the window name (`kCGWindowName`, which macOS returns as an empty string to apps without Screen Recording permission — no error is raised).
+- If the URL itself fails with "Permission denied", grant the calling app Automation access to the browser in System Settings > Privacy & Security > Automation.
+
 **DevTools**: "Connection refused"
 - Ensure Chrome is running with `--remote-debugging-port=9222`
 - Check if port 9222 is not blocked by firewall
